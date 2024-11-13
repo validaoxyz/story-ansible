@@ -1,9 +1,0 @@
-geth_version: "v0.9.4"
-geth_binary_url: "https://github.com/piplabs/story-geth/releases/download/{{ geth_version }}/geth-linux-amd64"
-geth_binary_path: "{{ bin_dir }}/geth"
-geth_data_dir: "{{ base_dir }}/geth"
-geth_http_port: 8545
-geth_ws_port: 8546
-geth_auth_port: 8551
-geth_p2p_port: 30303
-jwt_secret_path: "/home/{{ story_user }}/jwt.hex"
