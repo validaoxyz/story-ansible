@@ -1,0 +1,25 @@
+- name: Install required system packages
+  apt:
+    name:
+      - curl
+      - wget
+      - jq
+    state: present
+    update_cache: yes
+
+- name: Create story user
+  user:
+    name: "{{ story_user }}"
+    create_home: true
+    shell: /bin/bash
+
+- name: Create required directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ story_user }}"
+    group: "{{ story_user }}"
+    mode: '0755'
+  with_items:
+    - "{{ base_dir }}"
+    - "/var/lib/story"
