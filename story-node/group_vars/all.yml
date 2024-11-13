@@ -1,0 +1,4 @@
+story_user: "ubuntu"
+story_home: "/home/{{ story_user }}"
+base_dir: "/home/ubuntu/.story"
+bin_dir: "/usr/local/bin"

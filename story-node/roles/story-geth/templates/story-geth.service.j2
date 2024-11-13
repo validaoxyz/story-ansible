@@ -1,0 +1,28 @@
+[Unit]
+Description=Story Geth Execution Client
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User={{ story_user }}
+ExecStart={{ geth_binary_path }} \
+    --odyssey --syncmode full \
+    --datadir {{ geth_data_dir }} \
+    --http \
+    --http.addr 0.0.0.0 \
+    --http.port {{ geth_http_port }} \
+    --http.api eth,net,engine,admin \
+    --ws \
+    --ws.addr 0.0.0.0 \
+    --ws.port {{ geth_ws_port }} \
+    --ws.api eth,net,engine,admin \
+    --authrpc.addr 0.0.0.0 \
+    --authrpc.port {{ geth_auth_port }} \
+    --authrpc.jwtsecret {{ jwt_secret_path }}
+Restart=always
+RestartSec=3
+LimitNOFILE=65535
+Environment="HOME={{ geth_data_dir }}"
+
+[Install]
+WantedBy=multi-user.target
