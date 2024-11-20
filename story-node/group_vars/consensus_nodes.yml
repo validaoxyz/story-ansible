@@ -9,3 +9,9 @@ execution_endpoints: "http://localhost:8551"
 p2p_discovery_port: 9000
 p2p_tcp_port: 9000
 p2p_udp_port: 9000
+
+# Snapshot Configuration
+use_snapshot: true
+story_snapshot_url: "https://snapshots.polkachu.com/testnet-snapshots/story/story_355219.tar.lz4"
+story_snapshot_dest: "/tmp/story_355219.tar.lz4"
+story_data_dir: "{{ base_dir }}/story/data"

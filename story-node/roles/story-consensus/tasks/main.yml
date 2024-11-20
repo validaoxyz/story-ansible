@@ -1,5 +1,12 @@
-# roles/story-consensus/tasks/main.yml
 ---
+- name: Ensure required dependencies are installed
+  apt:
+    name:
+      - wget
+      - lz4
+    state: present
+  become: yes
+
 - name: Download Story binary
   get_url:
     url: "{{ story_binary_url }}"
@@ -18,7 +25,19 @@
   with_items:
     - "{{ base_dir }}/story"
     - "{{ base_dir }}/story/config"
-    - "/var/lib/story"
+    - "{{ story_data_dir }}"
+
+# --- Initialize Node If Not Already Done ---
+- name: Check if Story node is initialized
+  stat:
+    path: "{{ base_dir }}/story/config/genesis.json"
+  register: genesis_file
+
+- name: Initialize Story node
+  command: "{{ story_binary_path }} init --network {{ story_network }}"
+  when: not genesis_file.stat.exists
+
+# --- JWT Steps ---
 
 - name: Check if JWT secret exists on execution node
   stat:
@@ -43,37 +62,58 @@
     mode: '0644'
   when: jwt_secret_file.stat.exists
 
-- name: Initialize Story node
-  become_user: "{{ story_user }}"
-  command: "{{ story_binary_path }} init --network {{ story_network }}"
+# --- Snapshot Steps ---
+
+- name: Back up priv_validator_state.json if exists
+  shell: |
+    cp "{{ story_data_dir }}/priv_validator_state.json" "{{ story_data_dir }}/../priv_validator_state.json"
   args:
-    creates: "{{ base_dir }}/story/config/genesis.json"
-  environment:
-    HOME: "{{ base_dir }}/story"
+    creates: "{{ story_data_dir }}/../priv_validator_state.json"
+  become: yes
+  ignore_errors: true
 
-- name: Wait for config directory to be created
-  wait_for:
-    path: "{{ base_dir }}/story/config"
-    state: present
-    timeout: 30
+- name: Stop Story service before resetting node
+  systemd:
+    name: story
+    state: stopped
+  become: yes
 
-- name: Configure story client
-  template:
-    src: "config.yaml.j2"
-    dest: "{{ base_dir }}/story/config/config.yaml"
-    owner: "{{ story_user }}"
-    group: "{{ story_user }}"
-    mode: '0644'
+- name: Download snapshot for Story Consensus
+  shell: |
+    wget -O "{{ story_snapshot_dest }}" "{{ story_snapshot_url }}" --inet4-only
+  args:
+    chdir: "/tmp"
+  become: yes
 
-- name: Create Story service
-  template:
-    src: story.service.j2
-    dest: /etc/systemd/system/story.service
-    mode: '0644'
+- name: Decompress snapshot directly to data directory
+  shell: |
+    lz4 -c -d "{{ story_snapshot_dest }}" > "{{ story_data_dir }}/data"
+  become: yes
 
-- name: Start and enable Story service
+- name: Restore priv_validator_state.json if it was backed up
+  shell: |
+    cp "{{ story_data_dir }}/../priv_validator_state.json" "{{ story_data_dir }}/priv_validator_state.json"
+  args:
+    creates: "{{ story_data_dir }}/priv_validator_state.json"
+  become: yes
+  ignore_errors: true
+
+- name: Start Story service
   systemd:
     name: story
     state: started
     enabled: yes
     daemon_reload: yes
+  become: yes
+
+- name: Remove downloaded snapshot to free up space
+  file:
+    path: "{{ story_snapshot_dest }}"
+    state: absent
+  become: yes
+
+# - name: Verify Story service status
+#   shell: |
+#     sudo systemctl status story
+#   register: service_status
+#   ignore_errors: true
