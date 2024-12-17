@@ -201,31 +201,3 @@ ansible story_nodes -i inventory.yml -m fetch -a "src={{ home_dir }}/story/confi
 ```bash
 ansible story_nodes -i inventory.yml -m fetch -a "src={{ home_dir }}/geth/odyssey/jwtsecret dest=backups/"
 ```
-
-## Security Considerations
-
-- Always use SSH key authentication
-- Keep JWT files secure
-- Regularly update node software
-- Monitor system resources
-- Use proper firewall rules
-
-## License
-
-[Insert License Information]
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Submit a pull request
-
-## Support
-
-- Open issues on GitHub
-- Join the Story Discord community
-- Check documentation at [Story docs]
-
----
-
-**Note:** Always test in a staging environment before deploying to production.
