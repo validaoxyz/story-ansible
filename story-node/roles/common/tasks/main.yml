@@ -1,25 +1,85 @@
-- name: Install required system packages
+# ---
+# - name: Update and upgrade system packages
+#   apt:
+#     update_cache: yes
+#     upgrade: yes
+#   become: yes
+
+- name: Install required packages
   apt:
     name:
       - curl
+      - git
       - wget
+      - htop
+      - tmux
+      - build-essential
       - jq
+      - make 
+      - lz4
+      - gcc
+      - unzip
+      - openssl
     state: present
-    update_cache: yes
+    force_apt_get: yes
+  become: yes
 
-- name: Create story user
-  user:
-    name: "{{ story_user }}"
-    create_home: true
-    shell: /bin/bash
-
-- name: Create required directories
+- name: Create Go installation directory
   file:
     path: "{{ item }}"
     state: directory
-    owner: "{{ story_user }}"
-    group: "{{ story_user }}"
     mode: '0755'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
   with_items:
-    - "{{ base_dir }}"
-    - "/var/lib/story"
+    - "/home/{{ ansible_user }}/go"
+    - "/home/{{ ansible_user }}/go/bin"
+  become: yes
+
+- name: Download Go
+  get_url:
+    url: "https://golang.org/dl/go{{ go_version }}.linux-amd64.tar.gz"
+    dest: "/home/{{ ansible_user }}/go.tar.gz"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+
+- name: Remove existing Go installation
+  file:
+    path: /usr/local/go
+    state: absent
+  become: yes
+  ignore_errors: yes
+
+- name: Extract Go
+  unarchive:
+    src: "/home/{{ ansible_user }}/go.tar.gz"
+    dest: /usr/local
+    remote_src: yes
+  become: yes
+
+- name: Clean up Go tarball
+  file:
+    path: "/home/{{ ansible_user }}/go.tar.gz"
+    state: absent
+
+- name: Set environment variables
+  blockinfile:
+    path: "/home/{{ ansible_user }}/.bash_profile"
+    create: yes
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - GO ENV"
+    block: |
+      export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin
+      export GOPATH=$HOME/go
+      export MONIKER="{{ moniker }}"
+      export STORY_CHAIN_ID="{{ chain_id }}"
+      export STORY_PORT="{{ story_port }}"
+
+- name: Load environment variables
+  shell: source "/home/{{ ansible_user }}/.bash_profile"
+  args:
+    executable: /bin/bash
+  changed_when: false

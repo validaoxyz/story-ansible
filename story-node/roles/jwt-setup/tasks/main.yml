@@ -1,0 +1,59 @@
+# roles/jwt-setup/tasks/main.yml
+---
+- name: Ensure JWT directory exists
+  file:
+    path: "{{ home_dir }}/geth/odyssey"  # Updated path
+    state: directory
+    mode: '0755'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  become: yes
+
+- name: Generate JWT secret on consensus node
+  shell: |
+    openssl rand -hex 32 > {{ jwt_path }}
+  args:
+    creates: "{{ jwt_path }}"
+  when: inventory_hostname in groups['consensus_nodes']
+  register: jwt_generated
+  become: yes
+  become_user: "{{ ansible_user }}"
+
+# Fetch JWT from consensus node
+- name: Fetch JWT secret from consensus node
+  fetch:
+    src: "{{ jwt_path }}"
+    dest: "/tmp/story_jwt_secret"
+    flat: yes
+  when: inventory_hostname in groups['consensus_nodes']
+  become: yes
+
+# Copy JWT to geth node
+- name: Distribute JWT secret to geth node
+  copy:
+    src: "/tmp/story_jwt_secret"
+    dest: "{{ jwt_path }}"
+    mode: '0644'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  when: inventory_hostname in groups['geth_nodes']
+  become: yes
+
+# Verify JWT exists on both nodes
+- name: Verify JWT file exists
+  stat:
+    path: "{{ jwt_path }}"
+  register: jwt_check
+
+- name: Ensure JWT file is present
+  fail:
+    msg: "JWT file is missing on {{ inventory_hostname }}"
+  when: not jwt_check.stat.exists
+
+# Clean up local JWT file
+- name: Clean up local JWT file
+  file:
+    path: "/tmp/story_jwt_secret"
+    state: absent
+  delegate_to: localhost
+  run_once: true

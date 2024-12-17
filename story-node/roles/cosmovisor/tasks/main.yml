@@ -1,0 +1,100 @@
+# roles/cosmovisor/tasks/main.yml
+---
+- name: Set environment variables
+  blockinfile:
+    path: "/home/{{ ansible_user }}/.bashrc"
+    create: yes
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - GO ENV"
+    block: |
+      export PATH=$PATH:/usr/local/go/bin:/home/{{ ansible_user }}/go/bin
+      export GOPATH=/home/{{ ansible_user }}/go
+  become: yes
+
+- name: Create Go directories
+  file:
+    path: "/home/{{ ansible_user }}/go/bin"
+    state: directory
+    mode: '0755'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  become: yes
+
+- name: Install Cosmovisor
+  shell: |
+    export PATH=$PATH:/usr/local/go/bin:/home/{{ ansible_user }}/go/bin
+    export GOPATH=/home/{{ ansible_user }}/go
+    go install cosmossdk.io/tools/cosmovisor/cmd/cosmovisor@{{ cosmovisor_version }}
+  args:
+    executable: /bin/bash
+  become: yes
+  become_user: "{{ ansible_user }}"
+
+- name: Set Cosmovisor environment variables
+  blockinfile:
+    path: "/home/{{ ansible_user }}/.bashrc"
+    create: yes
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - COSMOVISOR ENV"
+    block: |
+      export DAEMON_NAME="story"
+      export DAEMON_HOME="{{ home_dir }}/story"
+      export DAEMON_DATA_BACKUP_DIR="{{ home_dir }}/story/data"
+      export DAEMON_ALLOW_DOWNLOAD_BINARIES=false
+      export DAEMON_RESTART_AFTER_UPGRADE=true
+      export UNSAFE_SKIP_BACKUP=true
+  become: yes
+
+- name: Create Cosmovisor directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  with_items:
+    - "{{ home_dir }}/story/cosmovisor/genesis/bin"
+    - "{{ home_dir }}/story/cosmovisor/upgrades/{{ story_version }}/bin"
+    - "{{ home_dir }}/story/data"
+  become: yes
+
+- name: Ensure correct permissions
+  file:
+    path: "{{ item }}"
+    mode: '0755'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  with_items:
+    - "/home/{{ ansible_user }}/go/bin/cosmovisor"
+    - "{{ home_dir }}/story/cosmovisor/genesis/bin/story"
+  become: yes
+  ignore_errors: yes  # In case file doesn't exist yet
+
+- name: Load environment
+  shell: |
+    source /home/{{ ansible_user }}/.bashrc
+  args:
+    executable: /bin/bash
+  become: yes
+  become_user: "{{ ansible_user }}"
+
+- name: Verify cosmovisor installation
+  shell: |
+    export PATH=$PATH:/usr/local/go/bin:/home/{{ ansible_user }}/go/bin
+    export GOPATH=/home/{{ ansible_user }}/go
+    export DAEMON_NAME="story"
+    export DAEMON_HOME="{{ home_dir }}/story"
+    export DAEMON_DATA_BACKUP_DIR="{{ home_dir }}/story/data"
+    /home/{{ ansible_user }}/go/bin/cosmovisor version
+  become: yes
+  become_user: "{{ ansible_user }}"
+  register: cosmovisor_version
+  changed_when: false
+
+- name: Show cosmovisor version output
+  debug:
+    var: cosmovisor_version.stdout

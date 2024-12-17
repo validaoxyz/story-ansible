@@ -1,0 +1,24 @@
+# templates/story.service.j2
+[Unit]
+Description=Story Consensus Client
+After=network.target
+
+[Service]
+User={{ ansible_user }}
+ExecStart=/home/{{ ansible_user }}/go/bin/cosmovisor run run \
+  --engine-jwt-file={{ home_dir }}/geth/odyssey/jwtsecret \
+  --network=odyssey \
+  --home={{ home_dir }}/story
+Environment="DAEMON_NAME=story"
+Environment="DAEMON_HOME={{ home_dir }}/story"
+Environment="DAEMON_DATA_BACKUP_DIR={{ home_dir }}/story/data"
+Environment="DAEMON_ALLOW_DOWNLOAD_BINARIES=false"
+Environment="DAEMON_RESTART_AFTER_UPGRADE=true"
+Environment="UNSAFE_SKIP_BACKUP=true"
+Environment="PATH=/usr/local/go/bin:/home/{{ ansible_user }}/go/bin:$PATH"
+Restart=on-failure
+RestartSec=3
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

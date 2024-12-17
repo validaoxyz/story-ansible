@@ -1,0 +1,14 @@
+[p2p]
+laddr = "tcp://0.0.0.0:{{ story_port }}656"
+seeds = "{{ seeds }}"
+persistent_peers = "{{ peers }}"
+external_address = "{{ external_ip.content }}:{{ story_port }}656"
+
+[rpc]
+laddr = "tcp://0.0.0.0:{{ story_port }}657"
+
+[instrumentation]
+prometheus = true
+
+[statesync]
+enable = false

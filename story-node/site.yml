@@ -1,33 +1,75 @@
-- name: Deploy Story Network Infrastructure
+# site.yml
+---
+- name: Prepare base setup
   hosts: story_nodes
-  become: true
-  gather_facts: true
-
+  gather_facts: yes
   pre_tasks:
-    - name: Update apt cache
-      apt:
-        update_cache: yes
-        cache_valid_time: 3600
-      when: ansible_os_family == "Ubuntu"
-
+    - name: Ensure base directories exist
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+      with_items:
+        - "/home/{{ ansible_user }}/go"
+        - "/home/{{ ansible_user }}/go/bin"
+        - "{{ home_dir }}"
+        - "{{ home_dir }}/geth"
+      become: yes
   roles:
-    - role: common
-      tags: ['common']
+    - common
 
-- name: Deploy Story Execution Nodes
-  hosts: execution_nodes
-  become: true
-  gather_facts: true
-
+- name: Set up JWT authentication
+  hosts: story_nodes
   roles:
-    - role: story-geth
-      tags: ['geth', 'execution']
+    - jwt-setup
 
-- name: Deploy Story Consensus Nodes
+- name: Configure nodes
+  hosts: story_nodes
+  roles:
+    - cosmovisor
+
+- name: Configure Story consensus node
   hosts: consensus_nodes
-  become: true
-  gather_facts: true
-
   roles:
-    - role: story-consensus
-      tags: ['consensus']
+    - story-consensus
+
+- name: Configure Story Geth node
+  hosts: geth_nodes
+  roles:
+    - story-geth
+
+- name: Start services
+  hosts: story_nodes
+  tasks:
+    - name: Enable and start services
+      systemd:
+        name: "{{ item }}"
+        state: restarted
+        daemon_reload: yes
+        enabled: yes
+      with_items:
+        - story-geth
+        - story
+      become: yes
+
+    - name: Set up UFW rules
+      ufw:
+        rule: allow
+        port: "{{ item.port }}"
+        proto: "{{ item.proto }}"
+      with_items:
+        - { port: 30303, proto: tcp }
+        - { port: 26656, proto: tcp }
+      become: yes
+
+    - name: Verify services are running
+      systemd:
+        name: "{{ item }}"
+        state: started
+      with_items:
+        - story-geth
+        - story
+      register: service_status
+      become: yes

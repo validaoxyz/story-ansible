@@ -1,119 +1,100 @@
+# roles/story-consensus/tasks/main.yml
 ---
-- name: Ensure required dependencies are installed
-  apt:
-    name:
-      - wget
-      - lz4
-    state: present
+
+- name: Get external IP
+  uri:
+    url: http://ifconfig.me/ip
+    return_content: yes
+  register: external_ip
+
+- name: Create Story directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  with_items:
+    - "{{ home_dir }}/story"
+    - "{{ home_dir }}/story/config"
+    - "{{ home_dir }}/story/cosmovisor/genesis/bin"
+    - "{{ home_dir }}/story/cosmovisor/upgrades/{{ story_version }}/bin"
+    - "{{ home_dir }}/geth"
   become: yes
 
 - name: Download Story binary
   get_url:
-    url: "{{ story_binary_url }}"
-    dest: "{{ story_binary_path }}"
+    url: "https://github.com/piplabs/story/releases/download/{{ story_version }}/story-linux-amd64"
+    dest: "/home/{{ ansible_user }}/story-binary"
     mode: '0755'
-    owner: "root"
-    group: "root"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  become: yes
 
-- name: Create story directories
-  file:
-    path: "{{ item }}"
-    state: directory
-    owner: "{{ story_user }}"
-    group: "{{ story_user }}"
+- name: Copy Story binary to Cosmovisor directories
+  copy:
+    src: "/home/{{ ansible_user }}/story-binary"
+    dest: "{{ item }}"
+    remote_src: yes
     mode: '0755'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
   with_items:
-    - "{{ base_dir }}/story"
-    - "{{ base_dir }}/story/config"
-    - "{{ story_data_dir }}"
+    - "{{ home_dir }}/story/cosmovisor/genesis/bin/story"
+    - "{{ home_dir }}/story/cosmovisor/upgrades/{{ story_version }}/bin/story"
+  become: yes
 
-# --- Initialize Node If Not Already Done ---
-- name: Check if Story node is initialized
-  stat:
-    path: "{{ base_dir }}/story/config/genesis.json"
-  register: genesis_file
+- name: Clean up temporary binary
+  file:
+    path: "/home/{{ ansible_user }}/story-binary"
+    state: absent
 
 - name: Initialize Story node
-  command: "{{ story_binary_path }} init --network {{ story_network }}"
-  when: not genesis_file.stat.exists
+  shell: |
+    source /home/{{ ansible_user }}/.bash_profile
+    "{{ home_dir }}/story/cosmovisor/genesis/bin/story" init --moniker {{ moniker }} --network odyssey
+  args:
+    executable: /bin/bash
+  become: yes
+  become_user: "{{ ansible_user }}"
 
-# --- JWT Steps ---
-
-- name: Check if JWT secret exists on execution node
-  stat:
-    path: "{{ jwt_secret_path }}"
-  register: jwt_secret_file
-  delegate_to: "{{ groups['execution_nodes'][0] }}"
-
-- name: Fetch JWT secret from execution node
-  fetch:
-    src: "{{ jwt_secret_path }}"
-    dest: "/tmp/jwt.hex"
-    flat: yes
-  when: jwt_secret_file.stat.exists
-  delegate_to: "{{ groups['execution_nodes'][0] }}"
-
-- name: Copy JWT secret to consensus node
-  copy:
-    src: "/tmp/jwt.hex"
-    dest: "{{ jwt_secret_path }}"
-    owner: "{{ story_user }}"
-    group: "{{ story_user }}"
+- name: Configure config.toml
+  template:
+    src: config.toml.j2
+    dest: "{{ home_dir }}/story/config/config.toml"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
     mode: '0644'
-  when: jwt_secret_file.stat.exists
-
-# --- Snapshot Steps ---
-
-- name: Back up priv_validator_state.json if exists
-  shell: |
-    cp "{{ story_data_dir }}/priv_validator_state.json" "{{ story_data_dir }}/../priv_validator_state.json"
-  args:
-    creates: "{{ story_data_dir }}/../priv_validator_state.json"
-  become: yes
-  ignore_errors: true
-
-- name: Stop Story service before resetting node
-  systemd:
-    name: story
-    state: stopped
   become: yes
 
-- name: Download snapshot for Story Consensus
-  shell: |
-    wget -O "{{ story_snapshot_dest }}" "{{ story_snapshot_url }}" --inet4-only
-  args:
-    chdir: "/tmp"
+- name: Download genesis and addrbook
+  get_url:
+    url: "{{ item.url }}"
+    dest: "{{ item.dest }}"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  with_items:
+    - { url: "https://server-3.itrocket.net/testnet/story/genesis.json", dest: "{{ home_dir }}/story/config/genesis.json" }
+    - { url: "https://server-3.itrocket.net/testnet/story/addrbook.json", dest: "{{ home_dir }}/story/config/addrbook.json" }
   become: yes
 
-- name: Decompress snapshot directly to data directory
-  shell: |
-    lz4 -c -d "{{ story_snapshot_dest }}" > "{{ story_data_dir }}/data"
+- name: Create Story service file
+  template:
+    src: story.service.j2
+    dest: /etc/systemd/system/story.service
+    mode: '0644'
   become: yes
 
-- name: Restore priv_validator_state.json if it was backed up
-  shell: |
-    cp "{{ story_data_dir }}/../priv_validator_state.json" "{{ story_data_dir }}/priv_validator_state.json"
-  args:
-    creates: "{{ story_data_dir }}/priv_validator_state.json"
-  become: yes
-  ignore_errors: true
+- name: Verify binaries exist
+  stat:
+    path: "{{ item }}"
+  with_items:
+    - "{{ home_dir }}/story/cosmovisor/genesis/bin/story"
+    - "{{ home_dir }}/story/cosmovisor/upgrades/{{ story_version }}/bin/story"
+  register: binary_check
 
-- name: Start Story service
-  systemd:
-    name: story
-    state: started
-    enabled: yes
-    daemon_reload: yes
-  become: yes
-
-- name: Remove downloaded snapshot to free up space
-  file:
-    path: "{{ story_snapshot_dest }}"
-    state: absent
-  become: yes
-
-# - name: Verify Story service status
-#   shell: |
-#     sudo systemctl status story
-#   register: service_status
-#   ignore_errors: true
+- name: Ensure binaries are present
+  fail:
+    msg: "Story binary is missing in {{ item.item }}"
+  when: not item.stat.exists
+  with_items: "{{ binary_check.results }}"

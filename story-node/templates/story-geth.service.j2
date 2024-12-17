@@ -1,0 +1,29 @@
+[Unit]
+Description=Story Geth Client
+After=network.target
+
+[Service]
+User={{ ansible_user }}
+ExecStart=/home/{{ ansible_user }}/go/bin/geth \
+  --odyssey \
+  --datadir={{ home_dir }}/geth/odyssey/geth \
+  --syncmode full \
+  --authrpc.jwtsecret={{ home_dir }}/geth/odyssey/jwtsecret \
+  --authrpc.addr=0.0.0.0 \
+  --authrpc.port=8551 \
+  --authrpc.vhosts=* \
+  --http \
+  --http.addr=0.0.0.0 \
+  --http.port=8545 \
+  --http.corsdomain=* \
+  --http.vhosts=* \
+  --http.api=web3,eth,net,engine \
+  --metrics \
+  --metrics.port=8008 \
+  --metrics.addr=0.0.0.0
+Restart=on-failure
+RestartSec=3
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

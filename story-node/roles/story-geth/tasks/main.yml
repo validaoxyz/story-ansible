@@ -1,41 +1,27 @@
-- name: Download Story-geth binary
-  get_url:
-    url: "{{ geth_binary_url }}"
-    dest: "{{ geth_binary_path }}"
-    mode: '0755'
-    owner: "root"
-    group: "root"
-
-- name: Create geth data directory
+- name: Create necessary directories
   file:
-    path: "{{ geth_data_dir }}"
+    path: "{{ item }}"
     state: directory
-    owner: "{{ story_user }}"
-    group: "{{ story_user }}"
     mode: '0755'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  with_items:
+    - "/home/{{ ansible_user }}/go/bin"
+    - "{{ home_dir }}/geth"
+  become: yes
 
-- name: Generate JWT secret
-  shell: |
-    openssl rand -hex 32 > {{ jwt_secret_path }}
-  args:
-    creates: "{{ jwt_secret_path }}"
+- name: Download Geth binary
+  get_url:
+    url: "https://github.com/piplabs/story-geth/releases/download/{{ geth_version }}/geth-linux-amd64"
+    dest: "/home/{{ ansible_user }}/go/bin/geth"
+    mode: '0755'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  become: yes
 
-- name: Set JWT secret permissions
-  file:
-    path: "{{ jwt_secret_path }}"
-    owner: "{{ story_user }}"
-    group: "{{ story_user }}"
-    mode: '0644'
-
-- name: Create story-geth service
+- name: Create Geth service file
   template:
     src: story-geth.service.j2
     dest: /etc/systemd/system/story-geth.service
     mode: '0644'
-
-- name: Start and enable story-geth service
-  systemd:
-    name: story-geth
-    state: started
-    enabled: yes
-    daemon_reload: yes
+  become: yes
