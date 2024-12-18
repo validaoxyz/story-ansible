@@ -8,7 +8,7 @@ all:
         consensus_nodes:
           hosts:
             consensus1:
-              ansible_host: 65.108.40.171
+              ansible_host: 185.8.106.207
         geth_nodes:
           hosts:
             geth1:

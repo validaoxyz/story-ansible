@@ -8,8 +8,8 @@ chain_id: "odyssey-0"
 network_id: "1516"
 moniker: "ValiDAO"
 story_port: "52"
-home_dir: "/home/{{ ansible_user }}/.story"  # Updated path
-jwt_path: "/home/{{ ansible_user }}/.story/geth/jwt.hex"  # Updated path
+home_dir: "/home/{{ ansible_user }}/.story"  
+jwt_path: "/home/{{ ansible_user }}/.story/geth/jwt.hex"  
 seeds: "434af9dae402ab9f1c8a8fc15eae2d68b5be3387@story-testnet-seed.itrocket.net:29656"
 peers: "c2a6cc9b3fa468624b2683b54790eb339db45cbf@story-testnet-peer.itrocket.net:26656,16e5119da2cd37c561b65f645a202755518f8a6a@88.198.27.51:52656"
-jwt_path: "/home/{{ ansible_user }}/.story/geth/odyssey/jwtsecret"  # Updated path
+jwt_path: "/home/{{ ansible_user }}/.story/geth/odyssey/jwtsecret"  
